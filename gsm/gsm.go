@@ -163,7 +163,10 @@ func (g *GSM) Init(options ...at.InitOption) (err error) {
 	var i []string
 	i, err = g.Command("+GCAP")
 	if err != nil {
-		return
+		
+		if !strings.Contains(err.Error(), "CME Error: 58") {
+			return
+		}
 	}
 	capabilities := make(map[string]bool)
 	for _, l := range i {
@@ -174,9 +177,9 @@ func (g *GSM) Init(options ...at.InitOption) (err error) {
 			}
 		}
 	}
-	if !capabilities["+CGSM"] {
-		return ErrNotGSMCapable
-	}
+	// if !capabilities["+CGSM"] {
+	// 	return ErrNotGSMCapable
+	// }
 	cmds := []string{
 		"+CMGF=1", // text mode
 		"+CMEE=2", // textual errors

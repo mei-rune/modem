@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"net"
 	"time"
 
 	"github.com/warthog618/modem/at"
@@ -32,7 +33,7 @@ func main() {
 	msg := flag.String("m", "Zoot Zoot", "the message to send")
 	timeout := flag.Duration("t", 5*time.Second, "command timeout period")
 	verbose := flag.Bool("v", false, "log modem interactions")
-	pdumode := flag.Bool("p", false, "send in PDU mode")
+	pdumode := flag.Bool("p", true, "send in PDU mode")
 	hex := flag.Bool("x", false, "hex dump modem responses")
 	vsn := flag.Bool("version", false, "report version and exit")
 	flag.Parse()
@@ -40,22 +41,49 @@ func main() {
 		fmt.Printf("%s %s\n", os.Args[0], version)
 		os.Exit(0)
 	}
-	m, err := serial.New(serial.WithPort(*dev), serial.WithBaud(*baud))
-	if err != nil {
-		log.Fatal(err)
+
+	var conn io.ReadWriteCloser
+	if _, _, err := net.SplitHostPort(*dev); err == nil {
+		log.Printf("connecting %+v", *dev)
+		c, err := net.Dial("tcp", *dev)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("connected")
+
+		conn = c
+	} else {
+		log.Printf("connecting %+v", *dev)
+
+		m, err := serial.New(serial.WithPort(*dev), serial.WithBaud(*baud))
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("connected")
+
+		conn = m
 	}
-	var mio io.ReadWriter = m
+
+	defer func() {
+			err := conn.Close()
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Println("closed")
+		}()
+
+	var mio io.ReadWriter = conn
 	if *hex {
-		mio = trace.New(m, trace.WithReadFormat("r: %v"))
+		mio = trace.New(mio, trace.WithReadFormat("r: %v"))
 	} else if *verbose {
-		mio = trace.New(m)
+		mio = trace.New(mio)
 	}
 	gopts := []gsm.Option{}
 	if !*pdumode {
 		gopts = append(gopts, gsm.WithTextMode)
 	}
 	g := gsm.New(at.New(mio, at.WithTimeout(*timeout)), gopts...)
-	if err = g.Init(); err != nil {
+	if err := g.Init(); err != nil {
 		log.Fatal(err)
 	}
 	if *pdumode {
