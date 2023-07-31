@@ -110,6 +110,7 @@ func sendPDU(g *gsm.GSM, number string, msg string) {
 			// !!! check CPIN?? on failure to determine root cause??  If ERROR 302
 			log.Fatal(err)
 		}
-		log.Printf("PDU %d: %v\n", i+1, mr)
-	}
+    log.Printf("PDU %d(%d): %v\n", len(pdus), i+1, mr)
+  }
+  log.Println("[[OK]]")
 }
